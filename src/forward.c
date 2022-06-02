@@ -16,7 +16,7 @@ ConvLayer* empty_Conv(int n_kb, int d_kb, int h_kb, int w_kb, int stride_x, int 
     ConvLayer* convolution_layer_pointer;
     convolution_layer_pointer = malloc(sizeof(ConvLayer));
     if (convolution_layer_pointer == NULL) {
-        fprintf(stderr, "错误：无法在new_Conv中为卷积层指针分配内存。");
+        printf("Error：无法在new_Conv中为卷积层指针分配内存。\n");
         exit(EXIT_FAILURE);
     }
 
@@ -53,7 +53,7 @@ ConvLayer* new_Conv(int n_kb, int d_kb, int h_kb, int w_kb, float**** weights_ar
     ConvLayer* convolution_layer_pointer;
     convolution_layer_pointer = malloc(sizeof(ConvLayer)); //convolution_layer_pointer: Convolutional Layer Pointer
     if (convolution_layer_pointer == NULL) {
-        fprintf(stderr, "错误：无法在new_Conv中为卷积层指针分配内存。");
+        printf("Error：无法在new_Conv中为卷积层指针分配内存。\n");
         exit(EXIT_FAILURE);
     }
 
@@ -85,7 +85,7 @@ DenseLayer* empty_Dense(int n_kb, int d_kb, int h_kb, int w_kb) {
     DenseLayer* dense_layer_pointer;
     dense_layer_pointer = malloc(sizeof(DenseLayer)); //dense_layer_pointer: Dense Layer Pointer
     if (dense_layer_pointer == NULL) {
-        fprintf(stderr, "错误：无法在new_Dense中为全连接层指针分配内存。");
+        printf("Error：无法在new_Dense中为全连接层指针分配内存。\n");
         exit(EXIT_FAILURE);
     }
 
@@ -115,7 +115,7 @@ DenseLayer* new_Dense(int n_kb, int d_kb, int h_kb, int w_kb, float**** weights_
     DenseLayer* dense_layer_pointer;
     dense_layer_pointer = malloc(sizeof(DenseLayer)); //dense_layer_pointer: Dense Layer Pointer
     if (dense_layer_pointer == NULL) {
-        fprintf(stderr, "错误：无法在new_Dense中为全连接层指针分配内存。");
+        printf("Error：无法在new_Dense中为全连接层指针分配内存。\n");
         exit(EXIT_FAILURE);
     }
 
@@ -141,7 +141,7 @@ DenseLayer* new_Dense(int n_kb, int d_kb, int h_kb, int w_kb, float**** weights_
  */
 Tensor* Conv(Tensor* input, ConvLayer* layer, Tensor* (*activation)(Tensor*, int), int free_input) {
     if (input->dims[0] != layer->kernel_box_dims[0]) {
-        fprintf(stderr, "错误：此层（ % d）中内核框的深度及其输入张量（ % d）的深度必须匹配", layer->kernel_box_dims[0], input->dims[0]);
+        printf("Error：此层（ % d）中内核框的深度及其输入张量（ % d）的深度必须匹配\n", layer->kernel_box_dims[0], input->dims[0]);
         exit(EXIT_FAILURE);
     }
 
@@ -206,7 +206,8 @@ Tensor* Conv(Tensor* input, ConvLayer* layer, Tensor* (*activation)(Tensor*, int
  */
 Tensor* Dense(Tensor* input, DenseLayer* layer, Tensor* (*activation)(Tensor*, int), int free_input) {
     if (input->dims[0] != layer->kernel_box_dims[0] || input->dims[1] != layer->kernel_box_dims[1] || input->dims[2] != layer->kernel_box_dims[2]) {
-        fprintf(stderr, "错误：输入：（d:%d h:%d w:%d ）| 卷积核：（ d:%d h:%d w:%d）", input->dims[0], input->dims[1], input->dims[2], layer->kernel_box_dims[0], layer->kernel_box_dims[1], layer->kernel_box_dims[2]);
+        printf("Error: The dimensions of the kernel boxes of the Dense layer must exactly match those of the input tensor.\n");
+        printf("输入：（d:%d h:%d w:%d ）| 卷积核：（ d:%d h:%d w:%d）\n", input->dims[0], input->dims[1], input->dims[2], layer->kernel_box_dims[0], layer->kernel_box_dims[1], layer->kernel_box_dims[2]);
         exit(EXIT_FAILURE);
     }
 
@@ -216,7 +217,6 @@ Tensor* Dense(Tensor* input, DenseLayer* layer, Tensor* (*activation)(Tensor*, i
     float*** output_array = alloc_3D(output_d, output_h, output_w);
 
     int d, h, w, id, i, j;
-    float result;
 
     // 这个函数遍历输出数组，逐个计算每个单元格的值
     for (d = 0; d < output_d; d++)
@@ -307,7 +307,7 @@ Tensor* softmax_activation(Tensor* input, int free_input)
     for (d = 0; d < output->dims[0]; d++) {
         for (h = 0; h < output->dims[1]; h++) {
             for (w = 0; w < output->dims[2]; w++) {
-                sum += exp((float)(input->T[d][h][w]));
+                sum += exp(input->T[d][h][w]);
             }
         }
     }
@@ -488,7 +488,7 @@ Tensor* apply_padding(Tensor* input, int padding_x, int padding_y, int free_inpu
  * @param padding       填充方式
  * @param free_input    是否释放或覆盖输入张量，如果free_input==1，则丢弃输入张量
  * @return Tensor*
- */                                           
+ */                                            //conv1d_31, 1, 4, 4, 1, VALID, 0
 Tensor* MaxPool(Tensor* input, int height, int width, int stride_x, int stride_y, padding_mode padding, int free_input) {
     if (padding == SAME) {
         int padding_x, padding_y;
@@ -658,11 +658,25 @@ Tensor* Concatenate(Tensor* input1, Tensor* input2, int free_input)
     float*** output_array = alloc_3D(output_d, x, y);
     int i, j, k;
     for (i = 0; i < d1; i++) {
-        output_array[i] = input1->T[i];
+        /*for (j = 0; j < x; j++) {
+            for (k = 0; k < y; k++) {
+                output_array[i][j][k] = input1->T[i][j][k];
+            }
+        }*/
+        for (j = 0; j < x; j++) {
+            output_array[i][j] = input1->T[i][j];
+        }
     }
 
     for (i = d1; i < output_d; i++) {
-        output_array[i] = input2->T[i - d1];
+        /*for (j = 0; j < x; j++) {
+            for (k = 0; k < y; k++) {
+                output_array[i][j][k] = input2->T[i-d1][j][k];
+            }
+        }*/
+        for (j = 0; j < x; j++) {
+            output_array[i][j] = input2->T[i - d1][j];
+        }
     }
 
     Tensor* output;
@@ -860,7 +874,7 @@ Tensor* Add(Tensor* input1, Tensor* input2, int free_inputs) {
  */
 Tensor* GlobalAveragePooling(Tensor* input, int nD, int free_inputs) {
     if (nD != 1 && nD != 2) {
-        fprintf(stderr, "错误：dims应为1或2\n");
+        printf("Error：dims应为1或2\n");
         exit(EXIT_FAILURE);
     }
     Tensor* output;
@@ -882,14 +896,14 @@ Tensor* GlobalAveragePooling(Tensor* input, int nD, int free_inputs) {
             }
         }
     }
-    else{   // GlobalAveragePooling2D   (d,m,n)->(1,1,d)
+    else{   // GlobalAveragePooling2D   (d,m,n)->(1,1,d)        //6,15,8
         float*** output_array = alloc_3D(1, 1, input->dims[0]);
-        output = make_tensor(1, 1, input->dims[0], output_array);
+        output = make_tensor(1, 1, input->dims[0], output_array);//1,1,6
 
-        for (d = 0; d < output->dims[2]; d++) {
+        for (d = 0; d < output->dims[2]; d++) {//6
             output->T[0][0][d] = 0;
-            for (h = 0; h < input->dims[1]; h++) {
-                for (w = 0; w < input->dims[2]; w++) {
+            for (h = 0; h < input->dims[1]; h++) {//15
+                for (w = 0; w < input->dims[2]; w++) {//8
                     output->T[0][0][d] += input->T[d][h][w];
                 }  
             }
@@ -911,7 +925,7 @@ Tensor* GlobalAveragePooling(Tensor* input, int nD, int free_inputs) {
  */
 void print_tensor(Tensor* t) {
 
-    printf("维度：%d,%d,%d\n\n-------------------------------------------------------\n", t->dims[1], t->dims[2], t->dims[0]);
+    printf("维度：%d,%d,%d\n\n---------------------------------------\n", t->dims[0], t->dims[1], t->dims[2]);
 
     int i, j, k;
     for (i = 0; i < t->dims[0]; i++) {
@@ -939,7 +953,7 @@ float**** alloc_4D(int b, int d, int h, int w) {
     float**** new;
     new = malloc(b * sizeof(float***));
     if (new == NULL) {
-        fprintf(stderr, "Error: Unable to allocate memory to new in alloc_4D.");
+        printf("Error: 无法为alloc_4D.new分配内存\n");
         exit(EXIT_FAILURE);
     }
 
@@ -947,19 +961,19 @@ float**** alloc_4D(int b, int d, int h, int w) {
     for (i = 0; i < b; i++) {
         new[i] = malloc(d * sizeof(float**));
         if (new[i] == NULL) {
-            fprintf(stderr, "Error: Unable to allocate memory to new[%d] in alloc_4D.", i);
+            printf("Error: 无法为alloc_4D.new[%d]分配内存\n", i);
             exit(EXIT_FAILURE);
         }
         for (j = 0; j < d; j++) {
             new[i][j] = malloc(h * sizeof(float*));
             if (new[i][j] == NULL) {
-                fprintf(stderr, "Error: Unable to allocate memory to new[%d][%d] in alloc_4D.", i, j);
+                printf("Error: 无法为alloc_4D.new[%d][%d]分配内存\n", i, j);
                 exit(EXIT_FAILURE);
             }
             for (k = 0; k < h; k++) {
                 new[i][j][k] = malloc(w * sizeof(float));
                 if (new[i][j][k] == NULL) {
-                    fprintf(stderr, "Error: Unable to allocate memory to new[%d][%d][%d] in alloc_4D.", i, j, k);
+                    printf("Error: 无法为alloc_4D.new[%d][%d][%d]分配内存\n", i, j, k);
                     exit(EXIT_FAILURE);
                 }
             }
@@ -980,7 +994,7 @@ float*** alloc_3D(int d, int h, int w) {
     float*** new;
     new = malloc(d * sizeof(float**));
     if (new == NULL) {
-        fprintf(stderr, "Error: Unable to allocate memory to new in alloc_3D.");
+        printf("Error: 无法为alloc_3D.new分配内存\n");
         exit(EXIT_FAILURE);
     }
 
@@ -988,13 +1002,13 @@ float*** alloc_3D(int d, int h, int w) {
     for (i = 0; i < d; i++) {
         new[i] = malloc(h * sizeof(float*));
         if (new[i] == NULL) {
-            fprintf(stderr, "Error: Unable to allocate memory to new[%d] in alloc_3D.", i);
+            printf("Error: 无法为alloc_3D.new[%d]分配内存\n", i);
             exit(EXIT_FAILURE);
         }
         for (j = 0; j < h; j++) {
             new[i][j] = malloc(w * sizeof(float));
             if (new[i][j] == NULL) {
-                fprintf(stderr, "Error: Unable to allocate memory to new[%d][%d] in alloc_3D.", i, j);
+                printf("Error: 无法为alloc_3D.new[%d][%d]分配内存\n", i, j);
                 exit(EXIT_FAILURE);
             }
         }
@@ -1082,7 +1096,7 @@ void free_tensor(Tensor* t) {
         }
         free(t->T[d]);
     }
-    free(t->dims);
+    free(t->T);
     free(t);
 }
 
@@ -1124,7 +1138,7 @@ void free_ConvLayer(ConvLayer* layer) {
     }
     free(layer->kernel_box_group);
     free(layer->bias_array);
-    free(layer->kernel_box_dims);
+    //free(layer->kernel_box_dims);
     free(layer);
 }
 
@@ -1145,7 +1159,579 @@ void free_DenseLayer(DenseLayer* layer) {
         free(layer->kernel_box_group[n]);
     }
     free(layer->kernel_box_group);
-    free(layer->bias_array);
-    free(layer->kernel_box_dims);
+    //free(layer->bias_array);
+    //free(layer->kernel_box_dims);
     free(layer);
+}
+
+
+
+
+// ---------------------------------------------------------------------------多线程
+pthread_mutex_t lock;   //线程锁
+/**
+ * @brief   卷积运算【多线程实现】
+ *
+ * @param input         输入张量
+ * @param layer         卷积层
+ * @param activation    指向激活函数的函数指针
+ * @param free_input    是否释放或覆盖输入张量，如果free_input==1，则丢弃输入张量
+ * @param num_of_thread 调用的线程数量，若为1则单线程实现，等效于Conv()函数
+ * @return Tensor*
+ */
+Tensor* Conv_t(Tensor* input, ConvLayer* layer, void* (*calc_activation_t)(void*), int free_input, int num_of_thread) {
+
+    if (input->dims[0] != layer->kernel_box_dims[0]) {
+        printf("Error：此层（ % d）中内核框的深度及其输入张量（ % d）的深度必须匹配\n", layer->kernel_box_dims[0], input->dims[0]);
+        exit(EXIT_FAILURE);
+    }
+    if (num_of_thread < 1) {
+        printf("Error：线程数需不小于1");
+        exit(EXIT_FAILURE);
+    }
+
+    if (layer->padding == SAME) {
+        int padding_x, padding_y;
+        padding_x = layer->stride_x * (input->dims[2] - 1) - input->dims[2] + layer->kernel_box_dims[2]; // left + right
+        padding_y = layer->stride_y * (input->dims[1] - 1) - input->dims[1] + layer->kernel_box_dims[1]; // top + bottom
+        input = apply_padding(input, padding_x, padding_y, free_input);
+        free_input = 1; // 如果padding操作使'input'指向原始输入的副本，则释放'input'是安全的
+    }
+
+    int output_d = layer->n_kb;
+    int output_w, output_h;
+
+    // 公式中的填充项被省略，因为此时的输入张量已经被填充,其尺寸也相应更新
+    output_h = ((input->dims[1] /*+ 2*layer->padding */ - layer->kernel_box_dims[1]) / layer->stride_y) + 1;
+    output_w = ((input->dims[2] /*+ 2*layer->padding */ - layer->kernel_box_dims[2]) / layer->stride_x) + 1;
+
+    float*** output_array = alloc_3D(output_d, output_h, output_w);
+    int d, h, w, id, by, bx, i, j;
+
+    if (num_of_thread == 1) {  // 单线程计算
+        // 遍历输出数组，逐个计算每个单元格的值
+        for (d = 0; d < output_d; d++) { // 输出深度
+            for (h = 0; h < output_h; h++) { // 输出高度
+                for (w = 0; w < output_w; w++) { // 输出宽度
+                    output_array[d][h][w] = 0; // 用于记录输入张量的每个“通道”上的卷积之和
+                    for (id = 0; id < input->dims[0]; id++) { // 输入深度
+                        by = h * layer->stride_y; //"begin y" 定义内核窗口的上边缘在输入层上的位置
+                        bx = w * layer->stride_x; //"begin x" 定义内核窗口左边缘在输入层上的位置
+                        for (i = 0; i < (layer->kernel_box_dims[1]); i++)
+                        { // 遍历内核窗口的高度
+                            for (j = 0; j < (layer->kernel_box_dims[2]); j++)
+                            { // 遍历内核窗口的宽度
+                                output_array[d][h][w] += input->T[id][by + i][bx + j] * layer->kernel_box_group[d][id][i][j];
+                            }
+                        }
+                    }
+                    // 添加偏置
+                    output_array[d][h][w] += layer->bias_array[d];
+                }
+            }
+        }
+    }
+    else {  // 多线程计算
+        pthread_mutex_init(&lock, NULL); //初始化线程锁
+        Struct_Conv_T* sct;
+        sct = (Struct_Conv_T*)malloc(sizeof(Struct_Conv_T));
+        sct->input = input;
+        sct->layer = layer;
+        sct->output_d = output_d;
+        sct->output_h = output_h;
+        sct->output_w = output_w;
+        sct->output_array = output_array;
+        int d = 0, h = 0, w = 0;
+        sct->d = &d;
+        sct->h = &h;
+        sct->w = &w;
+        // 初始化所有线程
+        pthread_t* tid; // 线程数量,，初始化4个
+        tid = (pthread_t*)malloc(sizeof(pthread_t) * 4);
+        if (num_of_thread > 4)
+            tid = (pthread_t*)realloc(tid, num_of_thread * sizeof(pthread_t));
+        // 分配任务
+        for (int i = 0; i < num_of_thread; i++) {
+            pthread_create(&tid[i], NULL, calc_conv_t, sct);
+        }
+        for (int i = 0; i < num_of_thread; i++) {
+            pthread_join(tid[i], NULL);//等待线程结束
+        }
+        free(tid);
+        printf("多线程计算完成\n");
+    }
+    if (free_input)
+        free_tensor(input);
+    Tensor* output;
+    output = make_tensor(output_d, output_h, output_w, output_array);
+    //return activation(output, 1);
+    return Activation_t(output, calc_activation_t, 1, num_of_thread);
+}
+
+/**
+ * @brief   每个线程的conv具体计算函数
+ *
+ */
+void* calc_conv_t(void* args) {
+    Struct_Conv_T* sct = (Struct_Conv_T*)args;
+    int d, h, w, id, by, bx, i, j;
+    while (1) {
+        pthread_mutex_lock(&lock); //上锁
+        d = *(sct->d);
+        h = *(sct->h);
+        w = *(sct->w);
+        if (d == sct->output_d) {   // 到达边界，直接退出
+            pthread_mutex_unlock(&lock);//解锁
+            break;
+        }
+        if (w == sct->output_w) {
+            w = 0;
+            h++;
+            (*(sct->w)) = 1;    // 0++ = 1
+            (*(sct->h))++;
+            if (h == sct->output_h) {
+                h = 0;
+                d++;
+                (*(sct->h)) = 0;
+                (*(sct->d))++;
+                if (d == sct->output_d) {
+                    pthread_mutex_unlock(&lock);//解锁
+                    break;
+                }
+            }
+        }   
+        else
+            (*(sct->w))++;
+        pthread_mutex_unlock(&lock);//解锁
+        sct->output_array[d][h][w] = 0; // 用于记录输入张量的每个“通道”上的卷积之和
+        for (id = 0; id < sct->input->dims[0]; id++) { // 输入深度
+            by = h * sct->layer->stride_y; //"begin y" 定义内核窗口的上边缘在输入层上的位置
+            bx = w * sct->layer->stride_x; //"begin x" 定义内核窗口左边缘在输入层上的位置
+            for (i = 0; i < (sct->layer->kernel_box_dims[1]); i++)
+            { // 遍历内核窗口的高度
+                for (j = 0; j < (sct->layer->kernel_box_dims[2]); j++)
+                { // 遍历内核窗口的宽度
+                    sct->output_array[d][h][w] += sct->input->T[id][by + i][bx + j] * sct->layer->kernel_box_group[d][id][i][j];
+                }
+            }
+        }
+        // 添加偏置
+        sct->output_array[d][h][w] += sct->layer->bias_array[d];
+    }
+    printf("\n---------------------------------该线程退出。\n");
+    return NULL;
+}
+
+/**
+ * @brief   全连接运算【多线程实现】
+ *
+ * @param input         输入张量
+ * @param layer         卷积层
+ * @param activation    指向激活函数的函数指针
+ * @param free_input    是否释放或覆盖输入张量，如果free_input==1，则丢弃输入张量
+ * @param num_of_thread 调用的线程数量，若为1则单线程实现，等效于Conv()函数
+ * @return Tensor*
+ */
+Tensor* Dense_t(Tensor* input, DenseLayer* layer, void* (*calc_activation_t)(void*), int free_input, int num_of_thread) {
+    if (input->dims[0] != layer->kernel_box_dims[0] || input->dims[1] != layer->kernel_box_dims[1] || input->dims[2] != layer->kernel_box_dims[2]) {
+        printf("Error: The dimensions of the kernel boxes of the Dense layer must exactly match those of the input tensor.\n");
+        printf("输入：（d:%d h:%d w:%d ）| 卷积核：（ d:%d h:%d w:%d）\n", input->dims[0], input->dims[1], input->dims[2], layer->kernel_box_dims[0], layer->kernel_box_dims[1], layer->kernel_box_dims[2]);
+        exit(EXIT_FAILURE);
+    }
+    if (num_of_thread < 1) {
+        printf("Error：线程数需不小于1");
+        exit(EXIT_FAILURE);
+    }
+    int output_d = 1, output_h = 1;
+    int output_w = layer->n_kb;
+    float*** output_array = alloc_3D(output_d, output_h, output_w);
+    int d, h, w, id, i, j;
+    if (num_of_thread == 1) {  // 单线程计算
+        // 这个函数遍历输出数组，逐个计算每个单元格的值
+        for (d = 0; d < output_d; d++)
+        { // 输出深度
+            for (h = 0; h < output_h; h++)
+            { // 输出高度
+                for (w = 0; w < output_w; w++)
+                { // 输出宽度
+                    output_array[d][h][w] = 0;
+                    for (id = 0; id < input->dims[0]; id++)
+                    { // 输入深度，对于全连接层通常为1，因为它们之前通常会进行展平操作
+                        for (i = 0; i < layer->kernel_box_dims[1]; i++)
+                        { // 遍历内核窗口的高度
+                            for (j = 0; j < layer->kernel_box_dims[2]; j++)
+                            { // 遍历内核窗口的宽度
+                                output_array[d][h][w] += input->T[id][i][j] * layer->kernel_box_group[w][id][i][j];
+                            } // 这里by和bx都是0，不会改变，因为内核维度等于输入张量层维度
+                        }
+                    }
+                    // 添加偏置
+                    output_array[d][h][w] += layer->bias_array[w];
+                }
+            }
+        }
+    }
+    else {  // 多线程计算
+        pthread_mutex_init(&lock, NULL); //初始化线程锁
+        Struct_Dense_T* sdt;
+        sdt = (Struct_Dense_T*)malloc(sizeof(Struct_Dense_T));
+        sdt->input = input;
+        sdt->layer = layer;
+        sdt->output_w = output_w;
+        sdt->output_array = output_array;
+        int w = 0;
+        sdt->w = &w;
+        // 初始化所有线程
+        pthread_t* tid; // 线程数量,，初始化4个
+        tid = (pthread_t*)malloc(sizeof(pthread_t) * 4);
+        if (num_of_thread > 4)
+            tid = (pthread_t*)realloc(tid, num_of_thread * sizeof(pthread_t));
+        // 分配任务
+        for (int i = 0; i < num_of_thread; i++) {
+            pthread_create(&tid[i], NULL, calc_dense_t, sdt);
+        }
+        for (int i = 0; i < num_of_thread; i++) {
+            pthread_join(tid[i], NULL);//等待线程结束
+        }
+        free(tid);
+        printf("多线程计算完成\n");
+    }
+    if (free_input) free_tensor(input);
+    Tensor* output;
+    output = make_tensor(output_d, output_h, output_w, output_array);
+    //return activation(output, 1);
+    return Activation_t(output, calc_activation_t, 1, num_of_thread);
+}
+
+/**
+ * @brief   每个线程的dense具体计算函数
+ *
+ */
+void* calc_dense_t(void* args) {
+    Struct_Dense_T* sdt = (Struct_Dense_T*)args;
+    int w, id, i, j;
+    while (1) {
+        pthread_mutex_lock(&lock); //上锁
+        w = *(sdt->w);
+        if (w == sdt->output_w) {
+            pthread_mutex_unlock(&lock);//解锁
+            break;
+        }
+        else
+            (*(sdt->w))++;
+        pthread_mutex_unlock(&lock);//解锁
+
+        sdt->output_array[0][0][w] = 0;
+        for (id = 0; id < sdt->input->dims[0]; id++)
+        { // 输入深度，对于全连接层通常为1，因为它们之前通常会进行展平操作
+            for (i = 0; i < sdt->layer->kernel_box_dims[1]; i++)
+            { // 遍历内核窗口的高度
+                for (j = 0; j < sdt->layer->kernel_box_dims[2]; j++)
+                { // 遍历内核窗口的宽度
+                    sdt->output_array[0][0][w] += sdt->input->T[id][i][j] * sdt->layer->kernel_box_group[w][id][i][j];
+                } // 这里by和bx都是0，不会改变，因为内核维度等于输入张量层维度
+            }
+        }
+        // 添加偏置
+        sdt->output_array[0][0][w] += sdt->layer->bias_array[w];
+    }
+    printf("\n---------------------------------该线程退出。\n");
+    return NULL;
+}
+
+/**
+ * @brief   激活函数运算【多线程实现】
+ *
+ * @param input     输入张量
+ * @param calc_activation_t     指向具体激活函数的函数指针
+ * @param free_input        是否释放或覆盖输入张量，如果free_input==1，则丢弃输入张量
+ * @param num_of_thread     调用的线程数量，若为0则单线程实现，等效于单线程激活函数
+ * @return Tensor*
+ */
+Tensor* Activation_t(Tensor* input, void* (*calc_activation_t)(void*), int free_input, int num_of_thread){
+    if (num_of_thread < 1) {   // 单线程计算
+        printf("Error：线程数需不小于1");
+        exit(EXIT_FAILURE);
+    }
+    Tensor* output;
+    if (free_input) {
+        output = input;
+    }
+    else {
+        float*** output_array = alloc_3D(input->dims[0], input->dims[1], input->dims[2]);
+        output = make_tensor(input->dims[0], input->dims[1], input->dims[2], output_array);
+    }
+    // 多线程计算
+    pthread_mutex_init(&lock, NULL); //初始化线程锁
+    Struct_Activation_T* sat;
+    sat = (Struct_Activation_T*)malloc(sizeof(Struct_Activation_T));
+    sat->input = input;
+    sat->output = output;
+    int d = 0, h = 0, w = 0, isAdd = 1;
+    float sum = 0;
+    sat->d = &d;
+    sat->h = &h;
+    sat->w = &w;
+    sat->sum = &sum;
+    sat->isAdd = &isAdd;
+    // 初始化所有线程
+    pthread_t* tid; // 线程数量,，初始化4个
+    tid = (pthread_t*)malloc(sizeof(pthread_t) * 4);
+    if (num_of_thread > 4)
+        tid = (pthread_t*)realloc(tid, num_of_thread * sizeof(pthread_t));
+    // 分配任务
+    for (int i = 0; i < num_of_thread; i++) {
+        pthread_create(&tid[i], NULL, calc_activation_t, sat);
+    }
+    for (int i = 0; i < num_of_thread; i++) {
+        pthread_join(tid[i], NULL);//等待线程结束
+    }
+    free(tid);
+    printf("多线程计算完成\n");
+    return output;
+}
+
+/**
+ * @brief   每个线程的sigmoid具体计算函数
+ *
+ */
+void* calc_sigmoid_t(void* args) {
+    Struct_Activation_T* sat = (Struct_Activation_T*)args;
+    int d, h, w;
+    while (1) {
+        pthread_mutex_lock(&lock); //上锁
+        d = *(sat->d);
+        h = *(sat->h);
+        w = *(sat->w);
+        if (d == sat->output->dims[0]) {   // 到达边界，直接退出
+            pthread_mutex_unlock(&lock);//解锁
+            break;
+        }
+        if (w == sat->output->dims[2]) {
+            w = 0;
+            h++;
+            (*(sat->w)) = 1;    // 0++ = 1
+            (*(sat->h))++;
+            if (h == sat->output->dims[1]) {
+                h = 0;
+                d++;
+                (*(sat->h)) = 0;
+                (*(sat->d))++;
+                if (d == sat->output->dims[0]) {
+                    pthread_mutex_unlock(&lock);//解锁
+                    break;
+                }
+            }
+        }
+        else
+            (*(sat->w))++;
+        pthread_mutex_unlock(&lock);//解锁
+        sat->output->T[d][h][w] = ((float)(1 / (1 + exp((double)-1 * (sat->input->T[d][h][w])))));
+    }
+    printf("\n---------------------------------该线程退出。\n");
+    return NULL;
+}
+
+/**
+ * @brief   每个线程的softmax具体计算函数
+ *
+ */
+void* calc_softmax_t(void* args) {
+    Struct_Activation_T* sat = (Struct_Activation_T*)args;
+    int d, h, w;
+    while (*(sat->isAdd)) { // 加和
+        pthread_mutex_lock(&lock); //上锁
+        d = *(sat->d);
+        h = *(sat->h);
+        w = *(sat->w);
+        if (d == sat->output->dims[0]) {   // 到达边界，直接退出
+            *(sat->d) = 0;
+            *(sat->h) = 0;
+            *(sat->w) = 0;
+            *(sat->isAdd) = 0;  // 加和完成
+            pthread_mutex_unlock(&lock);//解锁
+            break;
+        }
+        if (w == sat->output->dims[2]) {
+            w = 0;
+            h++;
+            (*(sat->w)) = 1;    // 0++ = 1
+            (*(sat->h))++;
+            if (h == sat->output->dims[1]) {
+                h = 0;
+                d++;
+                (*(sat->h)) = 0;
+                (*(sat->d))++;
+                if (d == sat->output->dims[0]) {
+                    *(sat->d) = 0;
+                    *(sat->h) = 0;
+                    *(sat->w) = 0;
+                    *(sat->isAdd) = 0;  // 加和完成
+                    pthread_mutex_unlock(&lock);//解锁
+                    break;
+                }
+            }
+        }
+        else
+            (*(sat->w))++;
+        //pthread_mutex_unlock(&lock);//解锁
+        //pthread_mutex_lock(&lock); //上锁
+        (*(sat->sum)) += exp(sat->input->T[d][h][w]);
+        pthread_mutex_unlock(&lock);//解锁
+    }
+    while (1) {
+        pthread_mutex_lock(&lock); //上锁
+        d = *(sat->d);
+        h = *(sat->h);
+        w = *(sat->w);
+        if (d == sat->output->dims[0]) {   // 到达边界，直接退出
+            pthread_mutex_unlock(&lock);//解锁
+            break;
+        }
+        if (w == sat->output->dims[2]) {
+            w = 0;
+            h++;
+            (*(sat->w)) = 1;    // 0++ = 1
+            (*(sat->h))++;
+            if (h == sat->output->dims[1]) {
+                h = 0;
+                d++;
+                (*(sat->h)) = 0;
+                (*(sat->d))++;
+                if (d == sat->output->dims[0]) {
+                    pthread_mutex_unlock(&lock);//解锁
+                    break;
+                }
+            }
+        }
+        else
+            (*(sat->w))++;
+        pthread_mutex_unlock(&lock);//解锁
+        sat->output->T[d][h][w] = exp((sat->input->T[d][h][w])) / *(sat->sum);
+    }
+    printf("\n---------------------------------该线程退出。\n");
+    return NULL;
+}
+
+/**
+ * @brief   每个线程的ReLU具体计算函数
+ *
+ */
+void* calc_ReLU_t(void* args) {
+    Struct_Activation_T* sat = (Struct_Activation_T*)args;
+    int d, h, w;
+    while (1) {
+        pthread_mutex_lock(&lock); //上锁
+        d = *(sat->d);
+        h = *(sat->h);
+        w = *(sat->w);
+        if (d == sat->output->dims[0]) {   // 到达边界，直接退出
+            pthread_mutex_unlock(&lock);//解锁
+            break;
+        }
+        if (w == sat->output->dims[2]) {
+            w = 0;
+            h++;
+            (*(sat->w)) = 1;    // 0++ = 1
+            (*(sat->h))++;
+            if (h == sat->output->dims[1]) {
+                h = 0;
+                d++;
+                (*(sat->h)) = 0;
+                (*(sat->d))++;
+                if (d == sat->output->dims[0]) {
+                    pthread_mutex_unlock(&lock);//解锁
+                    break;
+                }
+            }
+        }
+        else
+            (*(sat->w))++;
+        pthread_mutex_unlock(&lock);//解锁
+        sat->output->T[d][h][w] = (sat->input->T[d][h][w] < 0) ? 0 : sat->input->T[d][h][w];
+    }
+    printf("\n---------------------------------该线程退出。\n");
+    return NULL;
+}
+
+/**
+ * @brief   每个线程的ELU具体计算函数
+ *
+ */
+void* calc_ELU_t(void* args) {
+    Struct_Activation_T* sat = (Struct_Activation_T*)args;
+    int d, h, w;
+    while (1) {
+        pthread_mutex_lock(&lock); //上锁
+        d = *(sat->d);
+        h = *(sat->h);
+        w = *(sat->w);
+        if (d == sat->output->dims[0]) {   // 到达边界，直接退出
+            pthread_mutex_unlock(&lock);//解锁
+            break;
+        }
+        if (w == sat->output->dims[2]) {
+            w = 0;
+            h++;
+            (*(sat->w)) = 1;    // 0++ = 1
+            (*(sat->h))++;
+            if (h == sat->output->dims[1]) {
+                h = 0;
+                d++;
+                (*(sat->h)) = 0;
+                (*(sat->d))++;
+                if (d == sat->output->dims[0]) {
+                    pthread_mutex_unlock(&lock);//解锁
+                    break;
+                }
+            }
+        }
+        else
+            (*(sat->w))++;
+        pthread_mutex_unlock(&lock);//解锁
+        sat->output->T[d][h][w] = (sat->input->T[d][h][w] < 0) ? ((float)exp(sat->input->T[d][h][w]) - 1) : sat->input->T[d][h][w];
+    }
+    printf("\n---------------------------------该线程退出。\n");
+    return NULL;
+}
+
+/**
+ * @brief   每个线程的linear具体计算函数
+ *
+ */
+void* calc_linear_t(void* args) {
+    Struct_Activation_T* sat = (Struct_Activation_T*)args;
+    int d, h, w;
+    while (1) {
+        pthread_mutex_lock(&lock); //上锁
+        d = *(sat->d);
+        h = *(sat->h);
+        w = *(sat->w);
+        if (d == sat->output->dims[0]) {   // 到达边界，直接退出
+            pthread_mutex_unlock(&lock);//解锁
+            break;
+        }
+        if (w == sat->output->dims[2]) {
+            w = 0;
+            h++;
+            (*(sat->w)) = 1;    // 0++ = 1
+            (*(sat->h))++;
+            if (h == sat->output->dims[1]) {
+                h = 0;
+                d++;
+                (*(sat->h)) = 0;
+                (*(sat->d))++;
+                if (d == sat->output->dims[0]) {
+                    pthread_mutex_unlock(&lock);//解锁
+                    break;
+                }
+            }
+        }
+        else
+            (*(sat->w))++;
+        pthread_mutex_unlock(&lock);//解锁
+        sat->output->T[d][h][w] = sat->input->T[d][h][w];
+    }
+    printf("\n---------------------------------该线程退出。\n");
+    return NULL;
 }
