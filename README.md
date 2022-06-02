@@ -15,6 +15,9 @@
 keras输入格式要求为channel_last (height,width,channel)。
 
 ## 已实现：
+### v0.22
+- Windows环境下各激活函数的多线程实现
+
 ### v0.21
 - Windows环境下的Conv计算的多线程实现
 - Windows环境下的Dense计算的多线程实现
