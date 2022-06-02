@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <pthread.h>    // 用于PC端多线程计算
 
 /* ------------------------结构体定义-----------------------*/
 /**
@@ -104,6 +105,80 @@ Tensor* FlattenD(Tensor* input, int free_input);
 Tensor* Add(Tensor* input1, Tensor* input2, int free_inputs);
 // 对张量进行 nD=1或2 维全局均值池化，对数组中的张量进行元素求和后，该函数将结果数组中的每个元素除以张量数量n，得到元素均值
 Tensor* GlobalAveragePooling(Tensor* input, int nD, int free_inputs);
+
+/* -------------------------上述函数的多线程实现----------------------*/
+/**
+ * @brief 用于传递数据给calc_conv_t线程函数的结构体
+ *
+ */
+typedef struct {
+    // 指向计算所需数据
+    Tensor* input;
+    ConvLayer* layer;
+    // 计算边界
+    int output_d;
+    int output_h;
+    int output_w;
+    // 存放当前进度，全局共享
+    int *d; 
+    int *h;
+    int *w;
+    // 存放各线程的计算结果，全局共享
+    float*** output_array;
+} Struct_Conv_T;
+/**
+ * @brief 用于传递数据给calc_dense_t线程函数的结构体
+ *
+ */
+typedef struct {
+    // 指向计算所需数据
+    Tensor* input;
+    DenseLayer* layer;
+    // 计算边界
+    int output_w;
+    // 存放当前进度，全局共享
+    int* w;
+    // 存放各线程的计算结果，全局共享
+    float*** output_array;
+} Struct_Dense_T;
+
+/**
+ * @brief 用于传递数据给calc_activation_t线程函数的结构体
+ *
+ */
+typedef struct {
+    // 指向计算所需数据
+    Tensor* input;
+    // 存放计算边界、各线程的计算结果，全局共享
+    Tensor* output;
+    // 存放当前进度，全局共享
+    int* d;
+    int* h;
+    int* w;
+    float* sum; // 记录softmax的加和操作累计值，全局共享
+    int* isAdd;  // 判断softmax的加和操作是否完成，全局共享
+} Struct_Activation_T;
+
+// 卷积运算【多线程实现】
+Tensor* Conv_t(Tensor* input, ConvLayer* layer, void* (*calc_activation_t)(void*), int free_input, int num_of_thread);
+// 每个线程的conv具体计算函数
+void* calc_conv_t(void* args);
+// 全连接运算【多线程实现】
+Tensor* Dense_t(Tensor* input, DenseLayer* layer, void* (*calc_activation_t)(void*), int free_input, int num_of_thread);
+// 每个线程的dense具体计算函数
+void* calc_dense_t(void* args);
+// 激活函数运算【多线程实现】
+Tensor* Activation_t(Tensor* input, void* (*calc_activation_t)(void*), int free_input, int num_of_thread);
+// 每个线程的sigmoid具体计算函数
+void* calc_sigmoid_t(void* args);
+// 每个线程的softmax具体计算函数
+void* calc_softmax_t(void* args);
+// 每个线程的ReLU具体计算函数
+void* calc_ReLU_t(void* args);
+// 每个线程的ELU具体计算函数
+void* calc_ELU_t(void* args);
+// 每个线程的linear具体计算函数
+void* calc_linear_t(void* args);
 
 /* -------------------------工具函数----------------------*/
 // 打印张量
