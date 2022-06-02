@@ -1,12 +1,20 @@
 def extract_all(model):
-    # 配置精度
-    D_or_F = 'float' # 'double' or 'float'
+    # 配置
+    isDouble = False  # true:double; false:float
+    isThread = False  # true:多线程; false:单线程
+
+
+
+
+
     jing_du = ".7f"
-    
-    if D_or_F == 'float': # 选'f'会被gcc识别为float型
-        d_or_f = 'f'
-    else :  # 选''会被gcc识别为double型
+    d_or_f = 'f' # 选''会被gcc识别为double型
+    D_or_F = 'float'
+
+    if isDouble: # 选'f'会被gcc识别为float型
         d_or_f = ''
+        D_or_F = 'double'
+
     firstLayerConfig = model.get_layer(index=0).get_config()
     fh = open("model.h", "w+")
     fc = open("model.c", "w+")
@@ -15,20 +23,20 @@ def extract_all(model):
     fc.write('\nint main(int argc, char *argv[]){\n\n')
     fc.write('\n\n\t/******************  初始化输入张量  ******************/\n')
     fc.write('\t'+D_or_F+'*** singal_array;\n')
-    
+
     if len(firstLayerConfig['batch_input_shape']) == 4:  #(none,h,w,d)
         fh.write(D_or_F+' singal[{2}][{0}][{1}] = {{ 0 }};\n'.format(firstLayerConfig['batch_input_shape'][1], firstLayerConfig['batch_input_shape'][2], firstLayerConfig['batch_input_shape'][3]))
         fc.write('\tsingal_array = alloc_3D({2}, {0}, {1});\n'.format(firstLayerConfig['batch_input_shape'][1], firstLayerConfig['batch_input_shape'][2], firstLayerConfig['batch_input_shape'][3]))
         fc.write('\tfor (int i = 0; i < {0}; i++) {{\n'.format(firstLayerConfig['batch_input_shape'][3]))
         fc.write('\t\tfor (int j = 0; j < {0}; j++) {{\n'.format(firstLayerConfig['batch_input_shape'][1]))
-        fc.write('\t\t\tsingal_array[i][j] = singal[i][j];\n\t\t}\n\t}\n')       
+        fc.write('\t\t\tsingal_array[i][j] = singal[i][j];\n\t\t}\n\t}\n')
         fc.write('\tTensor* {0};\n'.format((model.get_layer(index=0).input.name).split('/')[0]))
         fc.write('\t{0} = make_tensor({3}, {1}, {2}, singal_array);\n'.format((model.get_layer(index=0).input.name).split('/')[0], firstLayerConfig['batch_input_shape'][1], firstLayerConfig['batch_input_shape'][2], firstLayerConfig['batch_input_shape'][3]))
     elif len(firstLayerConfig['batch_input_shape']) == 3:  #(none,w,d)
         fh.write(D_or_F+' singal[{1}][{0}] = {{ 0 }};\n'.format(firstLayerConfig['batch_input_shape'][1], firstLayerConfig['batch_input_shape'][2]))
         fc.write('\tsingal_array = alloc_3D({1}, 1, {0});\n'.format(firstLayerConfig['batch_input_shape'][1], firstLayerConfig['batch_input_shape'][2]))
         fc.write('\tfor (int i = 0; i < {0}; i++) {{\n'.format(firstLayerConfig['batch_input_shape'][2]))
-        fc.write('\t\tsingal_array[i][0] = singal[i];\n\t}\n')         
+        fc.write('\t\tsingal_array[i][0] = singal[i];\n\t}\n')
         fc.write('\tTensor* {0};\n'.format((model.get_layer(index=0).input.name).split('/')[0]))
         fc.write('\t{2} = make_tensor({1}, 1, {0}, singal_array);\n'.format(firstLayerConfig['batch_input_shape'][1], firstLayerConfig['batch_input_shape'][2], (model.get_layer(index=0).input.name).split('/')[0]))
     elif len(firstLayerConfig['batch_input_shape']) == 2: #(none,w,)
@@ -66,7 +74,7 @@ def extract_all(model):
                         fh.write("{")
                         for w in range(layer.kernel_size[1]):
                             fh.write(format(weights[n][d][w][h], jing_du) + d_or_f+",")
-                        fh.write("},\n")    
+                        fh.write("},\n")
                     fh.write("},\n")
                 fh.write("},\n")
             fh.write("};\n")
@@ -150,7 +158,7 @@ def extract_all(model):
             fc.write('\tDenseLayer *_{0};\n\t_{0} = new_Dense({1}, 1, 1, {2}, {0}_pw, &{0}_biases);\n'.format(layer.name, layer.units, layer.input_shape[1]))
         # BatchNormalization层,只有权重~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         elif isinstance(layer, keras.layers.BatchNormalization):
-            weights = layer.get_weights()            
+            weights = layer.get_weights()
 
             if len(weights)==4:  # 未忽略gama
                 # gama*************************************
@@ -194,9 +202,11 @@ def extract_all(model):
                 for n in range(len(weights[2])):
                     fh.write(format(weights[2][n], jing_du) + d_or_f+",")
                 fh.write('};\n')
-            
+
 
     fc.write('\n\n\t/******************  前向传播  ******************/\n')
+    if isThread:
+        fc.write('\tint num_of_thread = 4;//启用的线程数\n')
     for layer in model.layers:
         if isinstance(layer, keras.engine.input_layer.InputLayer):  # 跳过输入层
             continue
@@ -205,33 +215,40 @@ def extract_all(model):
         if isinstance(layer, keras.layers.convolutional.Conv1D) or isinstance(layer, keras.layers.convolutional.Conv2D):
             last_layer = (layer.input.name).split('/')[0]
             if layer.get_config()['activation'].upper() == "RELU":
-                activation = "ReLU_activation"
+                activation = "ReLU_activation" if not isThread else 'calc_ReLU_t'
             elif layer.get_config()['activation'].upper() == "LINEAR":
-                activation = "linear_activation"
+                activation = "linear_activation" if not isThread else 'calc_linear_t'
             elif layer.get_config()['activation'].upper() == "SIGMOID":
-                activation = "sigmoid_activation"
+                activation = "sigmoid_activation" if not isThread else 'calc_sigmoid_t'
             elif layer.get_config()['activation'].upper() == "SOFTMAX":
-                activation = "softmax_activation"
+                activation = "softmax_activation" if not isThread else 'calc_softmax_t'
             elif layer.get_config()['activation'].upper() == "ELU":
-                activation = "ELU_activation"
+                activation = "ELU_activation" if not isThread else 'calc_ELU_t'
             else:
                 print('【未实现的激活函数】：',layer.get_config()['activation'])
-            fc.write('\t{0} = Conv({2}, _{0}, {1}, 0);\n'.format(layer.name, activation, last_layer))
+            if isThread:
+                fc.write('\t{0} = Conv_t({2}, _{0}, {1}, 0, num_of_thread);\n'.format(layer.name, activation, last_layer))
+            else:
+                fc.write('\t{0} = Conv({2}, _{0}, {1}, 0);\n'.format(layer.name, activation, last_layer))
         elif isinstance(layer, keras.layers.core.Dense):
             last_layer = (layer.input.name).split('/')[0]
             if layer.get_config()['activation'].upper() == "RELU":
-                activation = "ReLU_activation"
+                activation = "ReLU_activation" if not isThread else 'calc_ReLU_t'
             elif layer.get_config()['activation'].upper() == "LINEAR":
-                activation = "linear_activation"
+                activation = "linear_activation" if not isThread else 'calc_linear_t'
             elif layer.get_config()['activation'].upper() == "SIGMOID":
-                activation = "sigmoid_activation"
+                activation = "sigmoid_activation" if not isThread else 'calc_sigmoid_t'
             elif layer.get_config()['activation'].upper() == "SOFTMAX":
-                activation = "softmax_activation"
+                activation = "softmax_activation" if not isThread else 'calc_softmax_t'
             elif layer.get_config()['activation'].upper() == "ELU":
-                activation = "ELU_activation"
+                activation = "ELU_activation" if not isThread else 'calc_ELU_t'
             else:
                 print('【未实现的激活函数】：',layer.get_config()['activation'])
-            fc.write('\t{0} = Dense({2}, _{0}, {1}, 0);\n'.format(layer.name, activation, last_layer))
+
+            if isThread:
+                fc.write('\t{0} = Dense_t({2}, _{0}, {1}, 0, num_of_thread);\n'.format(layer.name, activation, last_layer))
+            else:
+                fc.write('\t{0} = Dense({2}, _{0}, {1}, 0);\n'.format(layer.name, activation, last_layer))
         elif isinstance(layer, keras.layers.pooling.MaxPooling2D):
             last_layer = (layer.input.name).split('/')[0]
             fc.write('\t{0} = MaxPool({1}, {4}, {2}, {3}, {5}, {6}, 0);\n'.format(layer.name, last_layer, layer.pool_size[0], layer.strides[0], layer.pool_size[1], layer.strides[1], layer.padding.upper()))
@@ -262,7 +279,7 @@ def extract_all(model):
                 fc.write("\t{0}_pm={0}_moving_mean;\n".format(layer.name))
                 # moving_variance**************************
                 fc.write("\t"+D_or_F+"(*{0}_pv)[{1}];\n".format(layer.name, len(weights[3])))
-                fc.write("\t{0}_pv={0}_moving_variance;\n".format(layer.name)) 
+                fc.write("\t{0}_pv={0}_moving_variance;\n".format(layer.name))
                 fc.write('\t{0} = BatchNormalization({1}, &{0}_pg, &{0}_pb, &{0}_pm, &{0}_pv, 0);\n'.format(layer.name, last_layer))
             elif len(weights)==3:  #  忽略gama，即gama默认为1
                 # gama*************************************
@@ -276,7 +293,7 @@ def extract_all(model):
                 fc.write("\t{0}_pm={0}_moving_mean;\n".format(layer.name))
                 # moving_variance**************************
                 fc.write("\t"+D_or_F+"(*{0}_pv)[{1}];\n".format(layer.name, len(weights[2])))
-                fc.write("\t{0}_pv={0}_moving_variance;\n".format(layer.name)) 
+                fc.write("\t{0}_pv={0}_moving_variance;\n".format(layer.name))
                 fc.write('\t{0} = BatchNormalization({1}, &{0}_pg, &{0}_pb, &{0}_pm, &{0}_pv, 0);\n'.format(layer.name, last_layer))
         elif isinstance(layer, keras.layers.merge.Add):
             length = len(layer.input)
@@ -285,7 +302,7 @@ def extract_all(model):
             fc.write('\t{0} = Add({1}, {2}, 0);\n'.format(layer.name, layer1, layer2))
             if length > 2:
                 for i in range(2,length):
-                    fc.write('\t{0} = Add({0},{1},0);\n'.format(layer.name, (layer.input[i].name).split('/')[0]))   
+                    fc.write('\t{0} = Add({0},{1},0);\n'.format(layer.name, (layer.input[i].name).split('/')[0]))
         elif isinstance(layer, keras.layers.core.Dropout):
             last_layer = (layer.input.name).split('/')[0]
             fc.write('\t{0} = {1};\n'.format(layer.name, last_layer))
@@ -311,18 +328,32 @@ def extract_all(model):
             fc.write('\t{4} = AveragePool({3}, 1, {0}, {1}, 1, {2}, 0);\n'.format(layer.pool_size[0], layer.strides[0], layer.padding.upper(), last_layer, layer.name))
         elif isinstance(layer, keras.layers.core.Activation):
             last_layer = (layer.input.name).split('/')[0]
-            if layer.get_config()['activation'].upper() == "RELU":
-                fc.write('\t{0} = ReLU_activation({1}, 0);\n'.format(layer.name, last_layer))
-            elif layer.get_config()['activation'].upper() == "LINEAR":
-                fc.write('\t{0} = linear_activation({1}, 0);\n'.format(layer.name, last_layer))
-            elif layer.get_config()['activation'].upper() == "SIGMOID":
-                fc.write('\t{0} = sigmoid_activation({1}, 0);\n'.format(layer.name, last_layer))
-            elif layer.get_config()['activation'].upper() == "SOFTMAX":
-                fc.write('\t{0} = softmax_activation({1}, 0);\n'.format(layer.name, last_layer)) 
-            elif layer.get_config()['activation'].upper() == "ELU":
-                fc.write('\t{0} = ELU_activation({1}, 0);\n'.format(layer.name, last_layer))
-            else:
-                print('【未实现的激活函数】：',layer.get_config()['activation'])
+            if not isThread:    # 单线程激活函数
+                if layer.get_config()['activation'].upper() == "RELU":
+                    fc.write('\t{0} = ReLU_activation({1}, 0);\n'.format(layer.name, last_layer))
+                elif layer.get_config()['activation'].upper() == "LINEAR":
+                    fc.write('\t{0} = linear_activation({1}, 0);\n'.format(layer.name, last_layer))
+                elif layer.get_config()['activation'].upper() == "SIGMOID":
+                    fc.write('\t{0} = sigmoid_activation({1}, 0);\n'.format(layer.name, last_layer))
+                elif layer.get_config()['activation'].upper() == "SOFTMAX":
+                    fc.write('\t{0} = softmax_activation({1}, 0);\n'.format(layer.name, last_layer))
+                elif layer.get_config()['activation'].upper() == "ELU":
+                    fc.write('\t{0} = ELU_activation({1}, 0);\n'.format(layer.name, last_layer))
+                else:
+                    print('【未实现的激活函数】：',layer.get_config()['activation'])
+            else:   # 多线程激活函数
+                if layer.get_config()['activation'].upper() == "RELU":
+                    fc.write('\t{0} = Activation_t({1}, calc_ReLU_t, 0, num_of_thread);\n'.format(layer.name, last_layer))
+                elif layer.get_config()['activation'].upper() == "LINEAR":
+                    fc.write('\t{0} = Activation_t({1}, calc_linear_t, 0, num_of_thread);\n'.format(layer.name, last_layer))
+                elif layer.get_config()['activation'].upper() == "SIGMOID":
+                    fc.write('\t{0} = Activation_t({1}, calc_sigmoid_t, 0, num_of_thread);\n'.format(layer.name, last_layer))
+                elif layer.get_config()['activation'].upper() == "SOFTMAX":
+                    fc.write('\t{0} = Activation_t({1}, calc_softmax_t, 0, num_of_thread);\n'.format(layer.name, last_layer))
+                elif layer.get_config()['activation'].upper() == "ELU":
+                    fc.write('\t{0} = Activation_t({1}, calc_ELU_t, 0, num_of_thread);\n'.format(layer.name, last_layer))
+                else:
+                    print('【未实现的激活函数】：',layer.get_config()['activation'])
         else:
             print('【未实现网络层结构】：', layer.name,type(layer))
     fc.write('\n\n\t//print_tensor({0});\n'.format((model.layers[0].input.name).split('/')[0]))
