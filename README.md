@@ -15,6 +15,11 @@
 keras输入格式要求为channel_last (height,width,channel)。
 
 ## 已实现：
+### v0.21
+- Windows环境下的Conv计算的多线程实现
+- Windows环境下的Dense计算的多线程实现
+
+### v0.1
 - 层结构
   - 全连接层
   - Conv1D
