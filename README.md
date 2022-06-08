@@ -15,6 +15,9 @@
 keras输入格式要求为channel_last (height,width,channel)。
 
 ## 已实现：
+### v0.23
+- Windows环境下下采样、上采样函数的多线程实现
+
 ### v0.22
 - Windows环境下各激活函数的多线程实现
 
@@ -41,6 +44,5 @@ keras输入格式要求为channel_last (height,width,channel)。
 
 ## 待实现：
 - Windows环境下的多线程计算
-- GRU
-- LSTM
+- RNN
 - 基于dgl的GNN
