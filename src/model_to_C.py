@@ -1,13 +1,12 @@
 def extract_all(model):
     # 配置
-    isDouble = False  # true:double; false:float
-    isThread = False  # true:多线程; false:单线程
+    isDouble = False  # True:double; False:float
+    isThread = False  # True:多线程; False:单线程
+    jing_du = ".8f"
 
 
 
 
-
-    jing_du = ".7f"
     d_or_f = 'f' # 选''会被gcc识别为double型
     D_or_F = 'float'
 
@@ -204,9 +203,9 @@ def extract_all(model):
                 fh.write('};\n')
 
 
-    fc.write('\n\n\t/******************  前向传播  ******************/\n')
+    fc.write('\n\n\t/******************  前向传播  ******************/\n\n')
     if isThread:
-        fc.write('\tint num_of_thread = 4;//启用的线程数\n')
+        fc.write('\tint num_of_thread = 4;//启用的线程数\n\n')
     for layer in model.layers:
         if isinstance(layer, keras.engine.input_layer.InputLayer):  # 跳过输入层
             continue
@@ -244,26 +243,37 @@ def extract_all(model):
                 activation = "ELU_activation" if not isThread else 'calc_ELU_t'
             else:
                 print('【未实现的激活函数】：',layer.get_config()['activation'])
-
             if isThread:
                 fc.write('\t{0} = Dense_t({2}, _{0}, {1}, 0, num_of_thread);\n'.format(layer.name, activation, last_layer))
             else:
                 fc.write('\t{0} = Dense({2}, _{0}, {1}, 0);\n'.format(layer.name, activation, last_layer))
         elif isinstance(layer, keras.layers.pooling.MaxPooling2D):
             last_layer = (layer.input.name).split('/')[0]
-            fc.write('\t{0} = MaxPool({1}, {4}, {2}, {3}, {5}, {6}, 0);\n'.format(layer.name, last_layer, layer.pool_size[0], layer.strides[0], layer.pool_size[1], layer.strides[1], layer.padding.upper()))
+            if not isThread:
+                fc.write('\t{0} = MaxPool({1}, {4}, {2}, {3}, {5}, {6}, 0);\n'.format(layer.name, last_layer, layer.pool_size[0], layer.strides[0], layer.pool_size[1], layer.strides[1], layer.padding.upper()))
+            else:
+                fc.write('\t{0} = Pool_t({1}, calc_maxpool_t, {4}, {2}, {3}, {5}, {6}, 0, num_of_thread);\n'.format(layer.name, last_layer, layer.pool_size[0], layer.strides[0], layer.pool_size[1], layer.strides[1], layer.padding.upper()))
         elif isinstance(layer, keras.layers.pooling.MaxPooling1D):
             last_layer = (layer.input.name).split('/')[0]
-            fc.write('\t{4} = MaxPool({3}, 1, {0}, {1}, 1, {2}, 0);\n'.format(layer.pool_size[0], layer.strides[0], layer.padding.upper(), last_layer, layer.name))
+            if not isThread:
+                fc.write('\t{4} = MaxPool({3}, 1, {0}, {1}, 1, {2}, 0);\n'.format(layer.pool_size[0], layer.strides[0], layer.padding.upper(), last_layer, layer.name))
+            else:
+                fc.write('\t{4} = Pool_t({3}, calc_maxpool_t, 1, {0}, {1}, 1, {2}, 0, num_of_thread);\n'.format(layer.pool_size[0], layer.strides[0], layer.padding.upper(), last_layer, layer.name))
         elif isinstance(layer, keras.layers.core.Flatten):
             last_layer = (layer.input.name).split('/')[0]
             fc.write('\t{0} = FlattenW({1}, 0);\n'.format(layer.name, last_layer))
         elif isinstance(layer, keras.layers.convolutional.UpSampling2D):
             last_layer = (layer.input.name).split('/')[0]
-            fc.write('\t{0} = UpSample({1}, {2}, {3}, 0);\n'.format(layer.name, last_layer, layer.size[0], layer.size[1]))
+            if not isThread:
+                fc.write('\t{0} = UpSample({1}, {2}, {3}, 0);\n'.format(layer.name, last_layer, layer.size[0], layer.size[1]))
+            else:
+                fc.write('\t{0} = UpSample_t({1}, {2}, {3}, 0, num_of_thread);\n'.format(layer.name, last_layer, layer.size[0], layer.size[1]))
         elif isinstance(layer, keras.layers.convolutional.UpSampling1D):
             last_layer = (layer.input.name).split('/')[0]
-            fc.write('\t{1} = UpSample({2}, 1, {0}, 0);\n'.format(layer.size, layer.name, last_layer))
+            if not isThread:
+                fc.write('\t{1} = UpSample({2}, 1, {0}, 0);\n'.format(layer.size, layer.name, last_layer))
+            else:
+                fc.write('\t{1} = UpSample_t({2}, 1, {0}, 0, num_of_thread);\n'.format(layer.size, layer.name, last_layer))
         elif isinstance(layer, keras.layers.normalization.batch_normalization.BatchNormalization):
             last_layer = (layer.input.name).split('/')[0]
             weights = layer.get_weights()
@@ -322,10 +332,17 @@ def extract_all(model):
             fc.write('\t{0} = GlobalAveragePooling({1}, 1, 0);\n'.format(layer.name, last_layer))
         elif isinstance(layer, keras.layers.pooling.AveragePooling2D):
             last_layer = (layer.input.name).split('/')[0]
-            fc.write('\t{0} = AveragePool({1}, {4}, {2}, {3}, {5}, {6}, 0);\n'.format(layer.name, last_layer, layer.pool_size[0], layer.strides[0], layer.pool_size[1], layer.strides[1], layer.padding.upper()))
+            if not isThread:
+                fc.write('\t{0} = AveragePool({1}, {4}, {2}, {3}, {5}, {6}, 0);\n'.format(layer.name, last_layer, layer.pool_size[0], layer.strides[0], layer.pool_size[1], layer.strides[1], layer.padding.upper()))
+            else:
+                fc.write('\t{0} = Pool_t({1}, calc_averagepool_t, {4}, {2}, {3}, {5}, {6}, 0, num_of_thread);\n'.format(layer.name, last_layer, layer.pool_size[0], layer.strides[0], layer.pool_size[1], layer.strides[1], layer.padding.upper()))
         elif isinstance(layer, keras.layers.pooling.AveragePooling1D):
             last_layer = (layer.input.name).split('/')[0]
-            fc.write('\t{4} = AveragePool({3}, 1, {0}, {1}, 1, {2}, 0);\n'.format(layer.pool_size[0], layer.strides[0], layer.padding.upper(), last_layer, layer.name))
+            if not isThread:
+                fc.write('\t{4} = AveragePool({3}, 1, {0}, {1}, 1, {2}, 0);\n'.format(layer.pool_size[0], layer.strides[0], layer.padding.upper(), last_layer, layer.name))
+            else:
+                fc.write('\t{4} = Pool_t({3}, calc_averagepool_t, 1, {0}, {1}, 1, {2}, 0, num_of_thread);\n'.format(layer.pool_size[0], layer.strides[0], layer.padding.upper(), last_layer, layer.name))
+
         elif isinstance(layer, keras.layers.core.Activation):
             last_layer = (layer.input.name).split('/')[0]
             if not isThread:    # 单线程激活函数
@@ -356,6 +373,7 @@ def extract_all(model):
                     print('【未实现的激活函数】：',layer.get_config()['activation'])
         else:
             print('【未实现网络层结构】：', layer.name,type(layer))
+            break
     fc.write('\n\n\t//print_tensor({0});\n'.format((model.layers[0].input.name).split('/')[0]))
     fc.write('\n\n\t/******************  释放内存  ******************/\n')
     for layer in model.layers:

@@ -9,17 +9,14 @@
 /* ------------------------结构体定义-----------------------*/
 /**
  * 填充方式
- * VALID：在接下来的卷积运算之前，不会对输入张量进行填充
- * SAME：输入张量的填充方式将使后续卷积运算的输出具有与输入张量相同的尺寸
+ * VALID：不填充
+ * SAME：输入张量的填充方式将使后续运算的输出具有与输入张量相同的尺寸
  */
-typedef enum pm
+typedef enum
 {
     VALID,
     SAME
-}
-padding_mode;
-
-
+} padding_mode;
 
 /**
  * @brief 表示张量的结构
@@ -45,7 +42,6 @@ typedef struct {
     int stride_y;   // y方向的窗口步幅
     padding_mode padding;    // 此卷积层的填充选项，如padding_mode中所述
 } ConvLayer;
-
 
 /**
  * @brief 表示全连接层的结构
@@ -158,6 +154,50 @@ typedef struct {
     float* sum; // 记录softmax的加和操作累计值，全局共享
     int* isAdd;  // 判断softmax的加和操作是否完成，全局共享
 } Struct_Activation_T;
+/**
+ * @brief 用于传递数据给calc_pool_t线程函数的结构体
+ *
+ */
+typedef struct {
+    // 指向计算所需数据
+    Tensor* input;
+    // 计算边界
+    int output_d;
+    int output_h;
+    int output_w;
+    // 参数
+    int stride_x;
+    int stride_y;
+    int height;
+    int width;
+    // 存放当前进度，全局共享
+    int* d;
+    int* h;
+    int* w;
+    // 存放各线程的计算结果，全局共享
+    float*** output_array;
+} Struct_Pool_T;
+/**
+ * @brief 用于传递数据给calc_upsample_t线程函数的结构体
+ *
+ */
+typedef struct {
+    // 指向计算所需数据
+    Tensor* input;
+    // 计算边界
+    int output_d;
+    int output_h;
+    int output_w;
+    // 参数
+    int stride_x;
+    int stride_y;
+    // 存放当前进度，全局共享
+    int* d;
+    int* h;
+    int* w;
+    // 存放各线程的计算结果，全局共享
+    float*** output_array;
+} Struct_UpSample_T;
 
 // 卷积运算【多线程实现】
 Tensor* Conv_t(Tensor* input, ConvLayer* layer, void* (*calc_activation_t)(void*), int free_input, int num_of_thread);
@@ -179,6 +219,19 @@ void* calc_ReLU_t(void* args);
 void* calc_ELU_t(void* args);
 // 每个线程的linear具体计算函数
 void* calc_linear_t(void* args);
+// 池化运算【多线程实现】
+Tensor* Pool_t(Tensor* input, void* (*calc_activation_t)(void*), int height, int width, int stride_x, int stride_y, padding_mode padding, int free_input, int num_of_thread);
+// 每个线程的maxpool具体计算函数
+void* calc_maxpool_t(void* args);
+// 每个线程的averagepool具体计算函数
+void* calc_averagepool_t(void* args);
+// 上采样运算【多线程实现】
+Tensor* UpSample_t(Tensor* input, int stride_x, int stride_y, int free_input, int num_of_thread);
+// 每个线程的upsample具体计算函数
+void* calc_upsample_t(void* args);
+
+
+
 
 /* -------------------------工具函数----------------------*/
 // 打印张量
